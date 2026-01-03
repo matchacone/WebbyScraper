@@ -7,26 +7,34 @@ from crawl4ai import LLMConfig
 load_dotenv()
 
 class Contacts(BaseModel):
-    website: str = Field(..., description='Current website URL visited')
-    name: str = Field(..., description='Name of the contact')
-    title: str = Field(..., description='Title/Job Position of the contact')
-    last_name: str = Field(..., description='Last name of the contact')
-    first_name: str = Field(..., description='First name of the contact')
-    email: str = Field(..., description='Email of the contact')
-    phone: str = Field(..., description='Phone/Telephone number')
+    URL: str = Field(..., description="URL of the page")
+    name: str = Field(..., description="Full name of the person (e.g., 'Shane Thurkle').")
+    address: str = Field(..., description="Address of the person.")
+    title: str = Field(..., description="Job Title. MAX 5 words. Return 'N/A' if the text looks like a message or sentence.")
+    first_name: str = Field(..., description="First name inferred from 'name'.")
+    last_name: str = Field(..., description="Last name inferred from 'name'.")
+    email: str = Field(..., description="Personal email of the contact")
+    phone: str = Field(..., description="Mobile/Cell number preferred. Format: +63... or 09...")
 
 llm_cfg = LLMConfig(
-    provider='ollama/llama3.2',
-    api_token="no-token"
+    provider='gemini/gemini-2.5-flash',
+    api_token=os.getenv("GEMINI_API_KEY")
 )
 
 llm_strategy = LLMExtractionStrategy(
     llm_config=llm_cfg,
     schema=Contacts.model_json_schema(),
     extraction_type="schema",
-    extra_args={"temperature": 0},
-    instruction="""Extract contact details for the MAIN person/agent on this page.
-    - If a field is not explicitly visible, return 'N/A'.
-    - DO NOT invent information.
-    - DO NOT extract contacts from the footer, 'similar listings', or navigation menu."""
+    
+    chunk_token_threshold=30000,
+    overlap_rate=0.15,
+    apply_chunking=False,
+    
+    input_format="markdown",
+    instruction = """
+    Extract the specific data fields requested by the user from the webpage content.
+        - If a field is missing, return "N/A".
+        - Be precise and concise.
+        - Do not hallucinate data not present on the page.
+    """
 )

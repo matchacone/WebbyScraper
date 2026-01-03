@@ -13,3 +13,6 @@ dist/
 
 # VS Code settings
 .vscode/
+
+#.env files
+.env
