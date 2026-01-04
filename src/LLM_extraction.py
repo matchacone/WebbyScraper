@@ -1,10 +1,27 @@
 import os
+import sys
+
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from crawl4ai import LLMConfig
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+def get_api_key():
+    """Get API key from env or ask user."""
+    key = os.getenv("GEMINI_API_KEY")
+    if not key:
+        # If running as an app, we might need a popup, but for now use CLI
+        print("\n[!] Gemini API Key not found.")
+        key = input("Please paste your Google Gemini API Key: ").strip()
+        # Set it for this session so other parts of the app can find it
+        os.environ["GEMINI_API_KEY"] = key
+    return key
 
 class Contacts(BaseModel):
     URL: str = Field(..., description="URL of the page")
@@ -18,7 +35,8 @@ class Contacts(BaseModel):
 
 llm_cfg = LLMConfig(
     provider='gemini/gemini-2.5-flash',
-    api_token=os.getenv("GEMINI_API_KEY")
+    #provider='ollama/llama3.1'
+    api_token=get_api_key()
 )
 
 llm_strategy = LLMExtractionStrategy(

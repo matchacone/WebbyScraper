@@ -1,6 +1,22 @@
+import os
+import subprocess
+import sys
+
 import asyncio
 import LLM_extraction
 from crawl4ai import *
+
+def ensure_browsers_installed():
+    """Checks if Playwright browsers are present. If not, installs them."""
+    print("Checking browser components...")
+    try:
+        # A simple check (this is a bit hacky but works for simple apps)
+        # We try to run a playwright command. If it fails, we install.
+        subprocess.run(["playwright", "--version"], check=True, stdout=subprocess.DEVNULL)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        print("First time setup: Installing browsers (this takes a minute)...")
+        subprocess.run([sys.executable, "-m", "playwright", "install"], check=True)
+        print("Browser setup complete!")
 
 
 async def main():
@@ -38,6 +54,7 @@ async def main():
             print(f"Error: {result.error_message}")
 
 if __name__ == "__main__":
+    ensure_browsers_installed()
     asyncio.run(main())
 
         
