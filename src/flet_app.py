@@ -53,11 +53,14 @@ def main(page: ft.Page):
     data_tags_input = ft.TextField(
         label="Data to Extract",
         hint_text="email, phone, full_name",
-        helper_style="Separate keys by comma",
         border_color=ft.Colors.GREEN_400,
+        
         multiline=True,
-        max_lines=3,
-        text_size=12
+        min_lines=1,
+        max_lines=5,
+        
+        text_size=12,
+        content_padding=10
     )
 
     # 5. Action Button
@@ -69,7 +72,7 @@ def main(page: ft.Page):
         width=200
     )
 
-    # layout
+    # Layout
     
     # The Left Sidebar Container
     sidebar = ft.Container(
@@ -94,17 +97,114 @@ def main(page: ft.Page):
         alignment=ft.Alignment(-1,-1),
         border=ft.border.only(right=ft.border.BorderSide(1, ft.Colors.GREY_800))
     )
+    
+    # The Main Content Area
 
-    # The Main Content Area (Placeholder)
+    view_markdown = ft.Markdown(
+        """# Agent Profile Found
+**Name:** Shane Thurkle
+**Role:** Senior Broker
+**Status:** Active
+## Contact Details
+* **Email:** shane@example.com""",
+        extension_set=ft.MarkdownExtensionSet.GITHUB_WEB
+    )
+
+    view_json = ft.Text(
+        value='{\n  "name": "Shane Thurkle",\n  "role": "Broker"\n}',
+        font_family="Consolas,monospace",
+        color=ft.Colors.GREEN_400
+    )
+
+    view_csv = ft.Text(
+        value="Name,Role\nShane Thurkle,Broker",
+        font_family="Consolas,monospace"
+    )
+
+    # --- 2. THE CONTENT AREA ---
+    # This container holds the actual result (Markdown/JSON/CSV)
+    content_area = ft.Container(
+        content=ft.Column([view_markdown], scroll=ft.ScrollMode.AUTO),
+        padding=20,
+        expand=True,
+        alignment=ft.alignment.Alignment(-1, -1)
+    )
+
+    # --- 3. THE TOGGLE LOGIC ---
+    def set_view(view_type):
+        # 1. Update Content
+        if view_type == "markdown":
+            content_area.content = ft.Column([view_markdown], scroll=ft.ScrollMode.AUTO)
+        elif view_type == "json":
+            content_area.content = ft.Column([view_json], scroll=ft.ScrollMode.AUTO)
+        elif view_type == "csv":
+            content_area.content = ft.Column([view_csv], scroll=ft.ScrollMode.AUTO)
+        
+        # 2. Update Button Styles (Highlight the active one)
+        btn_markdown.bgcolor = ft.Colors.BLUE_600 if view_type == "markdown" else ft.Colors.GREY_800
+        btn_json.bgcolor = ft.Colors.BLUE_600 if view_type == "json" else ft.Colors.GREY_800
+        btn_csv.bgcolor = ft.Colors.BLUE_600 if view_type == "csv" else ft.Colors.GREY_800
+        
+        page.update()
+
+    # --- 4. THE BUTTONS ---
+    # We use simple buttons instead of ft.Tab to avoid crashes
+    btn_markdown = ft.ElevatedButton(
+        "Markdown", 
+        on_click=lambda _: set_view("markdown"),
+        bgcolor=ft.Colors.BLUE_600, # Active by default
+        color=ft.Colors.WHITE,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0))
+    )
+
+    btn_json = ft.ElevatedButton(
+        "JSON", 
+        on_click=lambda _: set_view("json"),
+        bgcolor=ft.Colors.GREY_800,
+        color=ft.Colors.WHITE,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0))
+    )
+
+    btn_csv = ft.ElevatedButton(
+        "CSV", 
+        on_click=lambda _: set_view("csv"),
+        bgcolor=ft.Colors.GREY_800,
+        color=ft.Colors.WHITE,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0))
+    )
+
+    # Put buttons in a generic Row
+    toggle_row = ft.Row(
+        [btn_markdown, btn_json, btn_csv], 
+        spacing=0 # Connect them together
+    )
+
+    # --- 5. FINAL ASSEMBLY ---
+    
+    ai_instruction_input = ft.TextField(
+        label="AI Instructions (Optional)",
+        hint_text="e.g., 'Summarize the bio'",
+        border_color=ft.Colors.BLUE_400,
+        prefix_icon="psychology",
+        text_size=13
+    )
+
     main_content = ft.Container(
         content=ft.Column([
             ft.Text("Results Dashboard", size=30, weight=ft.FontWeight.W_100),
-            ft.Text("Select settings on the left to begin...", color=ft.Colors.GREY_500),
-            ft.Icon("data_object", size=100, color=ft.Colors.GREY_800)
-        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Divider(color=ft.Colors.TRANSPARENT, height=10),
+            ai_instruction_input,
+            ft.Divider(color=ft.Colors.TRANSPARENT, height=10),
+            
+            # Add our custom Button Row
+            toggle_row,
+            # Add the Content Area
+            content_area
+        ]),
         expand=True,
         bgcolor=ft.Colors.BLACK,
-        alignment=ft.Alignment.CENTER
+        padding=20,
+        alignment=ft.alignment.Alignment(-1, -1)
     )
 
     # Combine them in a Row
