@@ -20,7 +20,17 @@ def main(page: ft.Page):
             url_input.min_lines = 5
         page.update()
 
-    # sidebar compoenents
+    # --- SETTINGS LOGIC (Auto-Save) ---
+    # Placeholder for settings (You can hook this up to a real file load/save later)
+    _settings = {"model": "gpt-4o-mini", "api_key": ""} 
+
+    def update_settings(e):
+        # This function runs immediately whenever the user types/selects something
+        _settings["model"] = model_dropdown.value
+        _settings["api_key"] = api_key_field.value
+        print(f"Settings Updated: {_settings}") # Check your terminal to see this work!
+
+    # --- SIDEBAR COMPONENTS ---
     
     # 1. Title
     sidebar_title = ft.Text(
@@ -54,11 +64,9 @@ def main(page: ft.Page):
         label="Data to Extract",
         hint_text="email, phone, full_name",
         border_color=ft.Colors.GREEN_400,
-        
         multiline=True,
         min_lines=1,
         max_lines=5,
-        
         text_size=12,
         content_padding=10
     )
@@ -72,22 +80,56 @@ def main(page: ft.Page):
         width=200
     )
 
-    # Layout
-    
-    # The Left Sidebar Container
+    # 6. LLM Model Selection (Settings)
+    model_dropdown = ft.Dropdown(
+        label="LLM Model",
+        options=[
+            ft.dropdown.Option("gpt-4o-mini"),
+            ft.dropdown.Option("gpt-4o"),
+            ft.dropdown.Option("gpt-3.5-turbo"),
+        ],
+        value=_settings["model"],
+        text_size=12,
+        border_color=ft.Colors.GREY_700,
+    )
+    # Assign the event MANUALLY after creation
+    model_dropdown.on_change = update_settings
+
+    # 7. API Key Input (Fixed for old Flet)
+    api_key_field = ft.TextField(
+        label="API Key",
+        password=True,
+        value=_settings["api_key"],
+        text_size=12,
+        border_color=ft.Colors.GREY_700,
+    )
+    # Assign the event MANUALLY after creation
+    api_key_field.on_change = update_settings
+
+    # --- LAYOUT: SIDEBAR ---
     sidebar = ft.Container(
         content=ft.Column(
             controls=[
                 sidebar_title,
                 ft.Divider(color=ft.Colors.GREY_800),
+                
                 ft.Text("Scrape Mode:", color=ft.Colors.GREY_400, size=12),
                 mode_selector,
+                
                 ft.Divider(height=20, color=ft.Colors.TRANSPARENT), # Spacer
                 url_input,
+                
                 ft.Divider(height=10, color=ft.Colors.TRANSPARENT), # Spacer
                 data_tags_input,
+                
                 ft.Divider(height=20, color=ft.Colors.TRANSPARENT), # Spacer
-                scrape_button
+                scrape_button,
+
+                # --- NEW SETTINGS SECTION ---
+                ft.Divider(height=30, color=ft.Colors.GREY_800),    # Visible Line
+                ft.Text("AI Configuration", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                model_dropdown,
+                api_key_field
             ],
             scroll=ft.ScrollMode.AUTO # Scrollable if settings get too long
         ),
@@ -98,8 +140,9 @@ def main(page: ft.Page):
         border=ft.border.only(right=ft.border.BorderSide(1, ft.Colors.GREY_800))
     )
     
-    # The Main Content Area
+    # --- MAIN CONTENT AREA ---
 
+    # 1. Define the Result Views
     view_markdown = ft.Markdown(
         """# Agent Profile Found
 **Name:** Shane Thurkle
@@ -121,8 +164,7 @@ def main(page: ft.Page):
         font_family="Consolas,monospace"
     )
 
-    # --- 2. THE CONTENT AREA ---
-    # This container holds the actual result (Markdown/JSON/CSV)
+    # 2. Container to hold the active view
     content_area = ft.Container(
         content=ft.Column([view_markdown], scroll=ft.ScrollMode.AUTO),
         padding=20,
@@ -130,9 +172,9 @@ def main(page: ft.Page):
         alignment=ft.alignment.Alignment(-1, -1)
     )
 
-    # --- 3. THE TOGGLE LOGIC ---
+    # 3. Logic to switch views (Manual Toggle)
     def set_view(view_type):
-        # 1. Update Content
+        # Update Content
         if view_type == "markdown":
             content_area.content = ft.Column([view_markdown], scroll=ft.ScrollMode.AUTO)
         elif view_type == "json":
@@ -140,15 +182,14 @@ def main(page: ft.Page):
         elif view_type == "csv":
             content_area.content = ft.Column([view_csv], scroll=ft.ScrollMode.AUTO)
         
-        # 2. Update Button Styles (Highlight the active one)
+        # Update Button Colors (Highlight active)
         btn_markdown.bgcolor = ft.Colors.BLUE_600 if view_type == "markdown" else ft.Colors.GREY_800
         btn_json.bgcolor = ft.Colors.BLUE_600 if view_type == "json" else ft.Colors.GREY_800
         btn_csv.bgcolor = ft.Colors.BLUE_600 if view_type == "csv" else ft.Colors.GREY_800
         
         page.update()
 
-    # --- 4. THE BUTTONS ---
-    # We use simple buttons instead of ft.Tab to avoid crashes
+    # 4. Toggle Buttons
     btn_markdown = ft.ElevatedButton(
         "Markdown", 
         on_click=lambda _: set_view("markdown"),
@@ -173,14 +214,12 @@ def main(page: ft.Page):
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0))
     )
 
-    # Put buttons in a generic Row
     toggle_row = ft.Row(
         [btn_markdown, btn_json, btn_csv], 
-        spacing=0 # Connect them together
+        spacing=0
     )
 
-    # --- 5. FINAL ASSEMBLY ---
-    
+    # 5. AI Instruction Input
     ai_instruction_input = ft.TextField(
         label="AI Instructions (Optional)",
         hint_text="e.g., 'Summarize the bio'",
@@ -189,16 +228,14 @@ def main(page: ft.Page):
         text_size=13
     )
 
+    # --- LAYOUT: MAIN CONTENT ---
     main_content = ft.Container(
         content=ft.Column([
             ft.Text("Results Dashboard", size=30, weight=ft.FontWeight.W_100),
             ft.Divider(color=ft.Colors.TRANSPARENT, height=10),
             ai_instruction_input,
             ft.Divider(color=ft.Colors.TRANSPARENT, height=10),
-            
-            # Add our custom Button Row
             toggle_row,
-            # Add the Content Area
             content_area
         ]),
         expand=True,
@@ -207,7 +244,7 @@ def main(page: ft.Page):
         alignment=ft.alignment.Alignment(-1, -1)
     )
 
-    # Combine them in a Row
+    # --- FINAL ASSEMBLY ---
     layout = ft.Row(
         controls=[sidebar, main_content],
         expand=True, 
