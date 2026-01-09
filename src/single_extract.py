@@ -2,9 +2,12 @@ import os
 import subprocess
 import sys
 
+import json
 import asyncio
 import LLM_extraction
 from crawl4ai import *
+from convert_csv import json_to_csv
+
 
 def ensure_browsers_installed():
     """Checks if Playwright browsers are present. If not, installs them."""
@@ -73,15 +76,16 @@ async def main():
                 )
                 
                 if result.success:
-                    print("\n--- SUCCESS ---")
-                    print(result.extracted_content)
+                    raw_json = result.extracted_content
+                    json_to_csv(raw_json)
+                    
                     break
                 else:
                     print(f"Attempt {attempt+1} failed: {result.error_message}")
             
             except Exception as e:
                 print(f"Crawl crashed on attempt {attempt+1}: {e}")
-            
+
             # cooldown
             await asyncio.sleep(5)
 

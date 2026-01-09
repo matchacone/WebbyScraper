@@ -26,6 +26,8 @@ async def main():
         verbose=True,
     )
 
+    all_scraped_data = []
+
     async with AsyncWebCrawler() as crawler:
         results = await crawler.arun("https://filipinohomes.com/agent-list.php", config=config)
 

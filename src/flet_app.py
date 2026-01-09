@@ -26,9 +26,10 @@ def main(page: ft.Page):
 
     def update_settings(e):
         # This function runs immediately whenever the user types/selects something
-        _settings["model"] = model_dropdown.value
+        # Note: We now read from 'model_input' instead of 'model_dropdown'
+        _settings["model"] = model_input.value
         _settings["api_key"] = api_key_field.value
-        print(f"Settings Updated: {_settings}") # Check your terminal to see this work!
+        print(f"Settings Updated: {_settings}")
 
     # --- SIDEBAR COMPONENTS ---
     
@@ -80,20 +81,15 @@ def main(page: ft.Page):
         width=200
     )
 
-    # 6. LLM Model Selection (Settings)
-    model_dropdown = ft.Dropdown(
+    # 6. LLM Model Input (Changed from Dropdown to TextField)
+    model_input = ft.TextField(
         label="LLM Model",
-        options=[
-            ft.dropdown.Option("gpt-4o-mini"),
-            ft.dropdown.Option("gpt-4o"),
-            ft.dropdown.Option("gpt-3.5-turbo"),
-        ],
-        value=_settings["model"],
+        value=_settings["model"], # Default value (e.g. "gpt-4o-mini")
         text_size=12,
         border_color=ft.Colors.GREY_700,
     )
     # Assign the event MANUALLY after creation
-    model_dropdown.on_change = update_settings
+    model_input.on_change = update_settings
 
     # 7. API Key Input (Fixed for old Flet)
     api_key_field = ft.TextField(
@@ -128,7 +124,7 @@ def main(page: ft.Page):
                 # --- NEW SETTINGS SECTION ---
                 ft.Divider(height=30, color=ft.Colors.GREY_800),    # Visible Line
                 ft.Text("AI Configuration", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                model_dropdown,
+                model_input,
                 api_key_field
             ],
             scroll=ft.ScrollMode.AUTO # Scrollable if settings get too long

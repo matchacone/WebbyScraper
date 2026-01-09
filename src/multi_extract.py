@@ -2,12 +2,17 @@ import os
 import subprocess
 import sys
 
+import json
 import asyncio
 import LLM_extraction
 from crawl4ai import *
+from convert_csv import create_csv
+
+
+
+
 
 def ensure_browsers_installed():
-    """Checks if Playwright browsers are present. If not, installs them."""
     print("Checking browser components...")
     try:
         subprocess.run(["playwright", "--version"], check=True, stdout=subprocess.DEVNULL)
@@ -32,15 +37,42 @@ async def main():
         }
     )
     
+    scroll_script = """
+        async function scrollDown() {
+            let totalHeight = 0;
+            let distance = 300; // Scroll 300px at a time
+            
+            while (totalHeight < document.body.scrollHeight) {
+                window.scrollBy(0, distance);
+                totalHeight += distance;
+                // Wait 100ms between scrolls to let the page catch up
+                await new Promise(r => setTimeout(r, 100)); 
+            }
+        }
+        await scrollDown();
+    """
+    
     run_conf = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
         verbose=True,   
         markdown_generator=md_generator,
-        page_timeout=80000,
+        magic = True,
+        
+        #word_count_threshold=10,
+        page_timeout=60000,
+        wait_until="domcontentloaded",
+        delay_before_return_html=5.0,
+        
+        # 2. CONTENT FIXES
+        remove_overlay_elements=True, 
+        js_code=scroll_script,
+        
         extraction_strategy=LLM_extraction.llm_strategy,
-        excluded_tags=["style", "noscript"],
+        excluded_tags=["style", "noscript", "script", "nav", "footer"],
         exclude_external_links=False,
     )
+    
+    all_scraped_data = []
     
     async with AsyncWebCrawler(config=browser_conf) as crawler:
         print(f"Starting crawl for {len(urls)} URLs...")
@@ -53,17 +85,20 @@ async def main():
 
         
         for result in results:
-            print(f"\n{'='*40}")
-            print(f"URL: {result.url}")
-            
             if result.success:
-                print("--- Extracted Content ---")
-                print(result.extracted_content)
-                #print(result.markdown)
+                clean_text = result.extracted_content
+                data = json.loads(clean_text)
+                
+                if isinstance(data, list):
+                    all_scraped_data.extend(data) # Add multiple items
+                else:
+                    all_scraped_data.append(data) # Add single item
+            
             else:
                 print(f"Error: {result.error_message}")
             
-            print(f"{'='*40}\n")
+    create_csv(all_scraped_data, "final_real_estate_data.csv")        
+    
 
 if __name__ == "__main__":
     ensure_browsers_installed()
