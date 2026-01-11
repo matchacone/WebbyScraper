@@ -1,13 +1,27 @@
 import flet as ft
+import pandas as pd
+import json
+import LLM_extraction # Import our backend
 
 def main(page: ft.Page):
     page.title = "Scraper Dashboard"
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 0  
     
-    # --- GUI LOGIC (Basic Interactivity) ---
+    # --- 1. SHARED STATE ---
+    _settings = {"model": "gpt-4o-mini", "api_key": ""} 
+
+    def update_settings(e):
+        _settings["model"] = model_input.value
+        _settings["api_key"] = api_key_field.value
+        print(f"Settings Updated: {_settings}")
+
+    # --- 2. GUI COMPONENTS ---
+    
+    # Sidebar Components
+    sidebar_title = ft.Text("Scrape Settings", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
+
     def toggle_url_mode(e):
-        """Changes the input hint based on selection"""
         if e.control.value == "single":
             url_input.label = "Single URL"
             url_input.hint_text = "https://example.com"
@@ -20,28 +34,6 @@ def main(page: ft.Page):
             url_input.min_lines = 5
         page.update()
 
-    # --- SETTINGS LOGIC (Auto-Save) ---
-    # Placeholder for settings (You can hook this up to a real file load/save later)
-    _settings = {"model": "gpt-4o-mini", "api_key": ""} 
-
-    def update_settings(e):
-        # This function runs immediately whenever the user types/selects something
-        # Note: We now read from 'model_input' instead of 'model_dropdown'
-        _settings["model"] = model_input.value
-        _settings["api_key"] = api_key_field.value
-        print(f"Settings Updated: {_settings}")
-
-    # --- SIDEBAR COMPONENTS ---
-    
-    # 1. Title
-    sidebar_title = ft.Text(
-        "Scrape Settings", 
-        size=20, 
-        weight=ft.FontWeight.BOLD,
-        color=ft.Colors.WHITE
-    )
-
-    # 2. Mode Selection (Single vs Multi)
     mode_selector = ft.RadioGroup(
         content=ft.Column([
             ft.Radio(value="single", label="Single URL"),
@@ -51,7 +43,6 @@ def main(page: ft.Page):
         on_change=toggle_url_mode
     )
 
-    # 3. URL Input Field
     url_input = ft.TextField(
         label="Target URL",
         hint_text="https://example.com",
@@ -60,74 +51,144 @@ def main(page: ft.Page):
         text_size=12
     )
 
-    # 4. Data Extraction Field
     data_tags_input = ft.TextField(
         label="Data to Extract",
         hint_text="email, phone, full_name",
         border_color=ft.Colors.GREEN_400,
         multiline=True,
         min_lines=1,
-        max_lines=5,
+        max_lines=3,
         text_size=12,
         content_padding=10
     )
 
-    # 5. Action Button
-    scrape_button = ft.ElevatedButton(
-        content=ft.Text("START SCRAPE"),
-        icon="rocket_launch",
-        bgcolor=ft.Colors.BLUE_600,
-        color=ft.Colors.WHITE,
-        width=200
-    )
-
-    # 6. LLM Model Input (Changed from Dropdown to TextField)
     model_input = ft.TextField(
-        label="LLM Model",
-        value=_settings["model"], # Default value (e.g. "gpt-4o-mini")
+        label="LLM Model (e.g. gpt-4o)",
+        value=_settings["model"],
         text_size=12,
         border_color=ft.Colors.GREY_700,
+        on_change=update_settings
     )
-    # Assign the event MANUALLY after creation
-    model_input.on_change = update_settings
 
-    # 7. API Key Input (Fixed for old Flet)
     api_key_field = ft.TextField(
         label="API Key",
         password=True,
         value=_settings["api_key"],
         text_size=12,
         border_color=ft.Colors.GREY_700,
+        on_change=update_settings
     )
-    # Assign the event MANUALLY after creation
-    api_key_field.on_change = update_settings
 
-    # --- LAYOUT: SIDEBAR ---
+    # --- 3. SCRAPE LOGIC ---
+    async def on_click_scrape(e):
+        # Validation
+        if not url_input.value:
+            url_input.error_text = "Required!"
+            url_input.update()
+            return
+        if not data_tags_input.value:
+            data_tags_input.error_text = "Required!"
+            data_tags_input.update()
+            return
+        if not api_key_field.value:
+            api_key_field.error_text = "API Key Required!"
+            api_key_field.update()
+            return
+
+        # Prepare Inputs
+        if mode_selector.value == "single":
+            targets = [url_input.value.strip()]
+        else:
+            targets = [u.strip() for u in url_input.value.split('\n') if u.strip()]
+
+        fields = [f.strip() for f in data_tags_input.value.split(',') if f.strip()]
+        
+        # Show Loading
+        scrape_button.disabled = True
+        scrape_button.content = ft.Row([ft.ProgressRing(width=16, height=16), ft.Text(" SCRAPING...")])
+        page.update()
+
+        try:
+            # CALL BACKEND
+            data = await LLM_extraction.run_scrape(
+                targets, 
+                fields, 
+                model_input.value, 
+                api_key_field.value
+            )
+
+            # Display Results
+            if data:
+                # 1. Update JSON View
+                view_json.value = json.dumps(data, indent=2)
+                
+                # 2. Update CSV/Table View
+                df = pd.DataFrame(data)
+                
+                # [SAFETY CHECK] Only build table if we actually have columns
+                if not df.empty and len(df.columns) > 0:
+                    # A. Create Columns
+                    view_csv.columns = [
+                        ft.DataColumn(ft.Text(str(col).upper(), weight="bold", color=ft.Colors.BLUE_200)) 
+                        for col in df.columns
+                    ]
+                    
+                    # B. Create Rows
+                    view_csv.rows = []
+                    for index, row in df.iterrows():
+                        cells = [ft.DataCell(ft.Text(str(row[col]), size=12, selectable=True)) for col in df.columns]
+                        view_csv.rows.append(ft.DataRow(cells=cells))
+                    
+                    # Update Markdown View
+                    view_markdown.value = df.to_markdown(index=False)
+                    
+                    # Switch to Table View
+                    set_view("csv")
+                else:
+                    view_json.value = "Data found, but it was empty or unstructured."
+                    set_view("json")
+            else:
+                view_json.value = "No data found."
+                set_view("json")
+
+        except Exception as ex:
+            view_json.value = f"Error: {str(ex)}"
+            set_view("json")
+
+        # Reset Button
+        scrape_button.disabled = False
+        scrape_button.content = ft.Text("START SCRAPE")
+        page.update()
+
+    scrape_button = ft.ElevatedButton(
+        content=ft.Text("START SCRAPE"),
+        icon="rocket_launch",
+        bgcolor=ft.Colors.BLUE_600,
+        color=ft.Colors.WHITE,
+        width=200,
+        on_click=on_click_scrape
+    )
+
+    # --- 4. LAYOUT ---
     sidebar = ft.Container(
         content=ft.Column(
             controls=[
                 sidebar_title,
                 ft.Divider(color=ft.Colors.GREY_800),
-                
                 ft.Text("Scrape Mode:", color=ft.Colors.GREY_400, size=12),
                 mode_selector,
-                
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT), # Spacer
+                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                 url_input,
-                
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT), # Spacer
+                ft.Divider(height=5, color=ft.Colors.TRANSPARENT),
                 data_tags_input,
-                
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT), # Spacer
+                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
                 scrape_button,
-
-                # --- NEW SETTINGS SECTION ---
-                ft.Divider(height=30, color=ft.Colors.GREY_800),    # Visible Line
+                ft.Divider(height=20, color=ft.Colors.GREY_800),
                 ft.Text("AI Configuration", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
                 model_input,
                 api_key_field
             ],
-            scroll=ft.ScrollMode.AUTO # Scrollable if settings get too long
+            scroll=ft.ScrollMode.AUTO
         ),
         width=280,
         bgcolor=ft.Colors.GREY_900,
@@ -136,100 +197,56 @@ def main(page: ft.Page):
         border=ft.border.only(right=ft.border.BorderSide(1, ft.Colors.GREY_800))
     )
     
-    # --- MAIN CONTENT AREA ---
-
-    # 1. Define the Result Views
-    view_markdown = ft.Markdown(
-        """# Agent Profile Found
-**Name:** Shane Thurkle
-**Role:** Senior Broker
-**Status:** Active
-## Contact Details
-* **Email:** shane@example.com""",
-        extension_set=ft.MarkdownExtensionSet.GITHUB_WEB
+    # Results Area
+    view_markdown = ft.Markdown("Run a scrape to see results here...")
+    view_json = ft.Text("Waiting for data...", font_family="Consolas", color=ft.Colors.GREEN_400, selectable=True)
+    view_csv = ft.DataTable(
+        columns=[ft.DataColumn(ft.Text("Status"))], 
+        rows=[ft.DataRow(cells=[ft.DataCell(ft.Text("Waiting for data..."))])],
+        
+        # Styling
+        border=ft.border.all(1, ft.Colors.GREY_800),
+        vertical_lines=ft.border.BorderSide(1, ft.Colors.GREY_800),
+        horizontal_lines=ft.border.BorderSide(1, ft.Colors.GREY_800),
+        heading_row_color=ft.Colors.GREY_900,
+        data_row_color=ft.Colors.BLACK,
     )
 
-    view_json = ft.Text(
-        value='{\n  "name": "Shane Thurkle",\n  "role": "Broker"\n}',
-        font_family="Consolas,monospace",
-        color=ft.Colors.GREEN_400
-    )
-
-    view_csv = ft.Text(
-        value="Name,Role\nShane Thurkle,Broker",
-        font_family="Consolas,monospace"
-    )
-
-    # 2. Container to hold the active view
     content_area = ft.Container(
-        content=ft.Column([view_markdown], scroll=ft.ScrollMode.AUTO),
+        content=ft.Column([view_json], scroll=ft.ScrollMode.AUTO),
         padding=20,
         expand=True,
         alignment=ft.alignment.Alignment(-1, -1)
     )
 
-    # 3. Logic to switch views (Manual Toggle)
     def set_view(view_type):
-        # Update Content
-        if view_type == "markdown":
-            content_area.content = ft.Column([view_markdown], scroll=ft.ScrollMode.AUTO)
-        elif view_type == "json":
-            content_area.content = ft.Column([view_json], scroll=ft.ScrollMode.AUTO)
-        elif view_type == "csv":
-            content_area.content = ft.Column([view_csv], scroll=ft.ScrollMode.AUTO)
+        if view_type == "markdown": content_area.content = ft.Column([view_markdown], scroll=ft.ScrollMode.AUTO)
+        elif view_type == "json": content_area.content = ft.Column([view_json], scroll=ft.ScrollMode.AUTO)
+        elif view_type == "csv": 
+            # [CHANGED] Wrap DataTable in a Row with scroll=ALWAYS to handle wide tables
+            content_area.content = ft.Column(
+                [
+                    ft.Row([view_csv], scroll=ft.ScrollMode.ALWAYS) # Horizontal scroll
+                ], 
+                scroll=ft.ScrollMode.AUTO # Vertical scroll
+            )
         
-        # Update Button Colors (Highlight active)
+        # Update Button Colors
         btn_markdown.bgcolor = ft.Colors.BLUE_600 if view_type == "markdown" else ft.Colors.GREY_800
         btn_json.bgcolor = ft.Colors.BLUE_600 if view_type == "json" else ft.Colors.GREY_800
         btn_csv.bgcolor = ft.Colors.BLUE_600 if view_type == "csv" else ft.Colors.GREY_800
         
         page.update()
 
-    # 4. Toggle Buttons
-    btn_markdown = ft.ElevatedButton(
-        "Markdown", 
-        on_click=lambda _: set_view("markdown"),
-        bgcolor=ft.Colors.BLUE_600, # Active by default
-        color=ft.Colors.WHITE,
-        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0))
-    )
+    btn_markdown = ft.ElevatedButton("Markdown", on_click=lambda _: set_view("markdown"), bgcolor=ft.Colors.GREY_800, color=ft.Colors.WHITE, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0)))
+    btn_json = ft.ElevatedButton("JSON", on_click=lambda _: set_view("json"), bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0)))
+    btn_csv = ft.ElevatedButton("CSV", on_click=lambda _: set_view("csv"), bgcolor=ft.Colors.GREY_800, color=ft.Colors.WHITE, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0)))
 
-    btn_json = ft.ElevatedButton(
-        "JSON", 
-        on_click=lambda _: set_view("json"),
-        bgcolor=ft.Colors.GREY_800,
-        color=ft.Colors.WHITE,
-        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0))
-    )
+    toggle_row = ft.Row([btn_markdown, btn_json, btn_csv], spacing=0)
 
-    btn_csv = ft.ElevatedButton(
-        "CSV", 
-        on_click=lambda _: set_view("csv"),
-        bgcolor=ft.Colors.GREY_800,
-        color=ft.Colors.WHITE,
-        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0))
-    )
-
-    toggle_row = ft.Row(
-        [btn_markdown, btn_json, btn_csv], 
-        spacing=0
-    )
-
-    # 5. AI Instruction Input
-    ai_instruction_input = ft.TextField(
-        label="AI Instructions (Optional)",
-        hint_text="e.g., 'Summarize the bio'",
-        border_color=ft.Colors.BLUE_400,
-        prefix_icon="psychology",
-        text_size=13
-    )
-
-    # --- LAYOUT: MAIN CONTENT ---
     main_content = ft.Container(
         content=ft.Column([
             ft.Text("Results Dashboard", size=30, weight=ft.FontWeight.W_100),
-            ft.Divider(color=ft.Colors.TRANSPARENT, height=10),
-            ai_instruction_input,
             ft.Divider(color=ft.Colors.TRANSPARENT, height=10),
             toggle_row,
             content_area
@@ -240,14 +257,7 @@ def main(page: ft.Page):
         alignment=ft.alignment.Alignment(-1, -1)
     )
 
-    # --- FINAL ASSEMBLY ---
-    layout = ft.Row(
-        controls=[sidebar, main_content],
-        expand=True, 
-        spacing=0    
-    )
-
-    page.add(layout)
+    page.add(ft.Row([sidebar, main_content], expand=True, spacing=0))
 
 if __name__ == "__main__":
     ft.app(target=main)
