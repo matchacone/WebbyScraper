@@ -1,9 +1,59 @@
 import flet as ft
 import pandas as pd
 import json
-import LLM_extraction # Import our backend
+import os
+import datetime
+
+import LLM_extraction 
 
 def main(page: ft.Page):
+    current_data = []
+    
+    def save_file(e):
+        """Saves the current data to the 'output' folder."""
+        # 1. Check if we have data
+        # We access the raw data stored in a global variable (we need to create this first)
+        if not current_data: 
+            save_button.text = "No Data!"
+            page.update()
+            return
+
+        # 2. Create 'output' folder if missing
+        if not os.path.exists("output"):
+            os.makedirs("output")
+
+        # 3. Generate Filename with Timestamp
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        
+        try:
+            # 4. Save based on current view mode
+            if "json" in btn_json.bgcolor: # If JSON view is active
+                filename = f"output/scrape_{timestamp}.json"
+                with open(filename, "w", encoding="utf-8") as f:
+                    json.dump(current_data, f, indent=2)
+                
+            else: # Default to CSV for Table/Markdown views
+                filename = f"output/scrape_{timestamp}.csv"
+                df = pd.DataFrame(current_data)
+                df.to_csv(filename, index=False)
+
+            # 5. Visual Feedback
+            save_button.text = "Saved!"
+            save_button.bgcolor = ft.Colors.GREEN_600
+            page.update()
+            
+            # Reset button after 3 seconds
+            import time
+            time.sleep(3)
+            save_button.text = "Save File"
+            save_button.bgcolor = ft.Colors.ORANGE_600
+            page.update()
+
+        except Exception as ex:
+            save_button.text = "Error Saving"
+            print(f"Save Error: {ex}")
+            page.update()
+            
     page.title = "Scraper Dashboard"
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 0  
@@ -116,6 +166,10 @@ def main(page: ft.Page):
                 model_input.value, 
                 api_key_field.value
             )
+            
+            current_data.clear()
+            if data:
+                current_data.extend(data)
 
             # Display Results
             if data:
@@ -169,7 +223,7 @@ def main(page: ft.Page):
         on_click=on_click_scrape
     )
 
-    # --- 4. LAYOUT ---
+    # Layout
     sidebar = ft.Container(
         content=ft.Column(
             controls=[
@@ -241,8 +295,19 @@ def main(page: ft.Page):
     btn_markdown = ft.ElevatedButton("Markdown", on_click=lambda _: set_view("markdown"), bgcolor=ft.Colors.GREY_800, color=ft.Colors.WHITE, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0)))
     btn_json = ft.ElevatedButton("JSON", on_click=lambda _: set_view("json"), bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0)))
     btn_csv = ft.ElevatedButton("CSV", on_click=lambda _: set_view("csv"), bgcolor=ft.Colors.GREY_800, color=ft.Colors.WHITE, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0)))
-
-    toggle_row = ft.Row([btn_markdown, btn_json, btn_csv], spacing=0)
+    
+    save_button = ft.ElevatedButton(
+        "Save File",
+        bgcolor=ft.Colors.ORANGE_600,
+        color=ft.Colors.WHITE,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=0)),
+        on_click=save_file # <--- Connect the function
+    )
+    
+    toggle_row = ft.Row(
+        [btn_markdown, btn_json, btn_csv, save_button],
+        spacing=0
+    )
 
     main_content = ft.Container(
         content=ft.Column([
