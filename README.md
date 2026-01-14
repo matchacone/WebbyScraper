@@ -5,7 +5,7 @@
 Hi! This is my first ever app that I've ever made in Python. It's not the best but I figured that its a good starting point in my journey to becoming a SWE, AI Engineer, or Data Scientist.
 
 ## Features
-* **Intelligent Extraction:** Uses LLMs to convert raw HTML into structured JSON/CSV data based on natural language tags.
+* **Intelligent Extraction:** Uses LLMs to convert raw markdown into structured JSON/CSV data based on natural language tags.
 * **Modern UI:** Built with Flet (Flutter for Python) featuring a dark-mode dashboard, sidebar navigation, and responsive layout.
 * **Data Visualization:** Instantly view scraped data in interactive Tables, JSON tree views, or Markdown.
 * **Batch Processing:** Supports scraping single URLs or bulk lists of URLs.
