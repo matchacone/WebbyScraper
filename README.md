@@ -1,6 +1,6 @@
 # LLM Web Scraper
 
-[![Download](https://img.shields.io/badge/Download-Windows_App-blue?style=for-the-badge&logo=windows)](https://github.com/YOUR_USERNAME/YOUR_REPO_NAME/releases/latest)
+[![Download](https://img.shields.io/badge/Download-Windows_App-blue?style=for-the-badge&logo=windows)](https://github.com/matchacone/WebbyScraper/releases/latest)
 
 Hi! This is my first ever app that I've ever made in Python. It's not the best but I figured that its a good starting point in my journey to becoming a SWE, AI Engineer, or Data Scientist.
 
